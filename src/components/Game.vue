@@ -26,6 +26,7 @@ import Vue from 'vue'
 export default {
   data() {
     return {
+      COUNT:4,
       activeName: 'game',
       nums: [
         [0, 0, 0, 0],
@@ -34,6 +35,32 @@ export default {
         [0, 0, 0, 0],
       ]
     };
+  },
+  beforeCreate() {
+    console.log('beforeCreate ==> 实例创建')
+    var style = document.createElement('style');
+    style.type = 'text/css';
+    var COUNT = this.COUNT;
+    for (let i = 0; i < COUNT; i++) {
+        let keyframeR1 = `row${i}_to_row${COUNT-i}`;
+        let keyframeC1 = `col${i}_to_col${COUNT-i}`;
+    }
+    var keyframes1 = `
+        @-webkit-keyframes mymove
+        {
+        from {top:0px;}
+        to {top:200px;}
+        }
+        `
+        var keyframes2 = `
+            @-webkit-keyframes mymove
+            {
+            from {top:0px;}
+            to {top:200px;}
+            }
+            `
+    style.innerHTML = keyframes1 + keyframes2;
+    document.getElementsByTagName('head')[0].appendChild(style);
   },
   methods: {
     initNum() {
@@ -274,6 +301,11 @@ export default {
 </script>
 
 <style>
+/*@-webkit-keyframes mymove
+{
+    from {top:0px;}
+    to {top:200px;}
+}*/
 #game {
   border-radius: 6px;
   background-color: RGB(187, 170, 170);
@@ -282,18 +314,21 @@ export default {
   margin: 0 auto;
 }
 
-.box-card {
-  width: 100%;
-  height: 100%;
-  border-radius: 5px;
-}
-
 .card {
   width: 100px;
   height: 100px;
   float: left;
+  background: #CD9B1D;
   margin-left: 8px;
   margin-top: 8px;
+}
+
+.box-card {
+  width: 100%;
+  height: 100%;
+  border-radius: 5px;
+  position:relative;
+  animation:mymove 5s infinite;
 }
 
 .item {
