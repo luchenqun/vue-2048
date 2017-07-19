@@ -1,6 +1,14 @@
 <template>
 <div>
-  <el-tabs v-model="activeName" @tab-click="handleClick" id="tabs">
+  <div id="game">
+    <!-- 底盘，占用格子 -->
+    <div v-for="(num, row) in nums">
+      <div v-for="(n, col) in num" class="card"></div>
+    </div>
+    <span v-for="item in items" v-bind:class="itemClass(item)">{{item.text}}
+    </span>
+  </div>
+  <!-- <el-tabs v-model="activeName" @tab-click="handleClick" id="tabs">
     <el-tab-pane label="我的信息" name="info"> 我的信息
     </el-tab-pane>
     <el-tab-pane label="开始游戏" name="game">
@@ -17,49 +25,75 @@
       </div>
     </el-tab-pane>
     <el-tab-pane label="英雄榜" name="ranklist">英雄榜</el-tab-pane>
-  </el-tabs>
+  </el-tabs> -->
 </div>
 </template>
 
 <script>
-import Vue from 'vue'
+var Item = function(row, col, text) {
+  this.text = text || 0;
+  this.row = row;
+  this.col = col;
+  this.oldRow = -1;
+  this.oldCol = -1;
+  this.id = Item.id++;
+};
+Item.id = 0;
+
 export default {
   data() {
     return {
-      COUNT:4,
+      COUNT: 4,
       activeName: 'game',
       nums: [
         [0, 0, 0, 0],
         [0, 0, 0, 0],
         [0, 0, 0, 0],
         [0, 0, 0, 0],
-      ]
+      ],
+      items: [],
     };
   },
   beforeCreate() {
-    console.log('beforeCreate ==> 实例创建')
+    // 插入动画的css代码
     var style = document.createElement('style');
     style.type = 'text/css';
-    var COUNT = this.COUNT;
-    for (let i = 0; i < COUNT; i++) {
-        let keyframeR1 = `row${i}_to_row${COUNT-i}`;
-        let keyframeC1 = `col${i}_to_col${COUNT-i}`;
+    const COUNT = 4;
+    const WIDTH = 100;
+    const GAP = 8;
+    for (var index = 0; index < COUNT - 1; index++) {
+      for (var next = index + 1; next < COUNT; next++) {
+        var keyframeName, keyframe, className, gapWidth;
+        gapWidth = (next - index) * GAP;
+
+        keyframeName = `row${index}_to_row${next}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${index*WIDTH+GAP}px;} to {left:${next*WIDTH + gapWidth}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+
+        keyframeName = `row${next}_to_row${index}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${next*WIDTH + gapWidth}px;} to {left:${index*WIDTH}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+
+        keyframeName = `col${index}_to_col${next}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${index*WIDTH+GAP}px;} to {top:${next*WIDTH + gapWidth}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+
+        keyframeName = `col${next}_to_col${index}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${next*WIDTH + gapWidth}px;} to {top:${index*WIDTH+GAP}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+        console.log(`.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`);
+      }
     }
-    var keyframes1 = `
-        @-webkit-keyframes mymove
-        {
-        from {top:0px;}
-        to {top:200px;}
-        }
-        `
-        var keyframes2 = `
-            @-webkit-keyframes mymove
-            {
-            from {top:0px;}
-            to {top:200px;}
-            }
-            `
-    style.innerHTML = keyframes1 + keyframes2;
+    for (var row = 0; row < COUNT; row++) {
+      for (var col = 0; col < COUNT; col++) {
+        className = `.pos_row${row}_col${col}{ top:${row*WIDTH+(row+1)*GAP}px; left:${col*WIDTH+(col+1)*GAP}px;}`;
+        style.innerHTML += className;
+      }
+    }
     document.getElementsByTagName('head')[0].appendChild(style);
   },
   methods: {
@@ -67,10 +101,20 @@ export default {
       this.nums.forEach((n, row) => {
         n.fill(0);
       })
-      this.updateNums(parseInt(Math.random() * 100) % 4, parseInt(Math.random() * 100) % 4, 2);
+      this.nums.forEach((a, row) => {
+        a.forEach((b, col) => {
+          this.nums[row][col] = Math.pow(2, parseInt(Math.random() * 11));
+          if (this.nums[row][col] >= 2) {
+            var item = new Item(row, col, this.nums[row][col]);
+            this.items.push(item);
+          }
+        })
+      })
+      //   this.updateNums(parseInt(Math.random() * 100) % 4, parseInt(Math.random() * 100) % 4, 2);
+      this.updateNums(0, 0, 2);
     },
     updateNums(row, col, newValue) {
-      Vue.set(this.nums[row], col, newValue);
+      this.$set(this.nums[row], col, newValue);
     },
     randNum() {
       var success = false;
@@ -100,6 +144,12 @@ export default {
       var o = {};
       o['num-' + this.nums[r][l]] = true;
       return o;
+    },
+    itemClass(item) {
+      var classArray = ['item'];
+      classArray.push('num-' + item.text);
+      classArray.push('pos_row' + item.row + '_col' + item.col);
+      return classArray.join(' ');
     },
     left() {
       var nums = this.nums;
@@ -301,41 +351,33 @@ export default {
 </script>
 
 <style>
-/*@-webkit-keyframes mymove
-{
-    from {top:0px;}
-    to {top:200px;}
-}*/
 #game {
   border-radius: 6px;
   background-color: RGB(187, 170, 170);
   width: 440px;
   height: 440px;
   margin: 0 auto;
+  position: relative;
 }
 
 .card {
   width: 100px;
   height: 100px;
   float: left;
+  border-radius: 5px;
   background: #CD9B1D;
   margin-left: 8px;
   margin-top: 8px;
-}
-
-.box-card {
-  width: 100%;
-  height: 100%;
-  border-radius: 5px;
-  position:relative;
-  animation:mymove 5s infinite;
+  /*animation: col0_to_col2 100ms linear 1ms 1 normal forwards;*/
 }
 
 .item {
   height: 100px;
+  width: 100px;
   text-align: center;
   line-height: 100px;
-  margin-left: -15px;
+  position: absolute;
+  border-radius: 5px;
   font-size: 50px;
 }
 
@@ -381,9 +423,11 @@ export default {
 
 .num-1024 {
   background: #40E0D0;
+  font-size: 40px;
 }
 
 .num-2048 {
   background: #228B22;
+  font-size: 40px;
 }
 </style>
