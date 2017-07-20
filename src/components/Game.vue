@@ -20,8 +20,8 @@
   </el-tabs> -->
   <div id="game">
     <!-- 底盘，占用格子 -->
-    <div v-for="(item, row) in board.nums">
-      <div v-for="(num, col) in item" class="card"></div>
+    <div v-for="(rowNums, row) in board.nums">
+      <div v-for="(item, col) in rowNums" class="card"></div>
     </div>
     <span v-for="item in board.items.filter((item) => item.num > 0)" v-bind:class="itemClass(item)">{{item.num}}
     </span>
@@ -55,7 +55,7 @@ Item.prototype.updatePos = function(row, col) {
 }
 
 Item.prototype.needMove = function() {
-  return this.merge;
+  return (this.merge) || (this.fromRow() != -1 && (this.fromRow() != this.toRow() || this.fromCol() != this.toCol()));
 }
 
 Item.prototype.fromRow = function() {
@@ -80,18 +80,19 @@ var Board = function() {
   this.items = []; // 用于来移动的数字
   this.nums = []; // 用于来做逻辑数字
 
-  var num = 1;
+
 
   // 初始化棋盘
   this.nums = new Array(Board.SIZE);
   for (var row = 0; row < this.nums.length; row++) {
     this.nums[row] = new Array(Board.SIZE);
     for (var col = 0; col < this.nums[row].length; col++) {
-      this.nums[row][col] = this.addItem(0, row, col);
+      var num = Math.pow(2, parseInt(Math.random() * 6) + 1);
+      this.nums[row][col] = this.addItem(num, row, col);
     }
   }
 
-  this.nums[0] = [this.addItem(2, 0, 0), this.addItem(2, 0, 1), this.addItem(0, 0, 2), this.addItem(2, 0, 3)];
+  // this.nums[0] = [this.addItem(4, 0, 0), this.addItem(4, 0, 1), this.addItem(0, 0, 2), this.addItem(2, 0, 3)];
   // 初始化一个数字
   // this.addRandNum();
   this.win = false; // 胜利标志
@@ -175,11 +176,11 @@ Board.prototype.left = function() {
     var newRow = [];
     for (var col = 0; col < Board.SIZE; ++col) {
       var curItem = curRow.length ? curRow.shift() : this.addItem(0, row, col);
-      var nextItem = (curRow.length > 0 && curRow[0]) || null;
+      var nextItem = (curRow.length && curRow[0]) || null;
 
       // 满足合并条件
       if (nextItem && curItem.num == nextItem.num) {
-        var mergeItem = this.addItem(curItem.num * 2, row, col);
+        var mergeItem = this.addItem(curItem.num * 2);
 
         var itemMove1 = curItem;
         itemMove1.merge = mergeItem;
@@ -214,7 +215,9 @@ Board.prototype.move = function(direction) {
   this.print();
   this.rotateNums(direction); // 旋转，为左操作准备
   this.left();
+  // this.addRandNum();
   this.rotateNums(4 - (direction % 4)) // 操作完成之后，要旋转回来
+  this.setPositions();
   this.print();
 }
 
@@ -235,28 +238,30 @@ export default {
     const GAP = 8;
     for (var index = 0; index < COUNT - 1; index++) {
       for (var next = index + 1; next < COUNT; next++) {
-        var keyframeName, keyframe, className, gapWidth;
-        gapWidth = (next - index) * GAP;
+        var keyframeName, keyframe, className;
+        var begin = index * (WIDTH + GAP) + GAP;
+        var end = next * (WIDTH + GAP) + GAP;
+        var duration = 1000;
 
         keyframeName = `r${index}_to_r${next}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {width:${index*WIDTH+GAP}px;} to {width:${next*WIDTH + gapWidth}px;}}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${begin}px;} to {top:${end}px;}}`;
         style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
 
         keyframeName = `r${next}_to_r${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {width:${next*WIDTH + gapWidth}px;} to {width:${index*WIDTH}px;}}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${end}px;} to {top:${begin}px;}}`;
         style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
 
         keyframeName = `c${index}_to_c${next}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${index*WIDTH+GAP}px;} to {left:${next*WIDTH + gapWidth}px;}}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${begin}px;} to {left:${end}px;}}`;
         style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
 
         keyframeName = `c${next}_to_c${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${next*WIDTH + gapWidth}px;} to {left:${index*WIDTH+(index+1)*GAP}px;}}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${end}px;} to {left:${begin}px;}}`;
         style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
       }
     }
     for (var row = 0; row < COUNT; row++) {
@@ -278,7 +283,7 @@ export default {
     },
     handleClick(tab, event) {},
     itemClass(item) {
-      //   console.log(item.row, item.col, item.oldRow, item.oldCol, item.num, item.merge, item.firstShow());
+      console.log('row:' + item.row, 'col:' + item.col, 'oldRow:' + item.oldRow, 'oldCol:' + item.oldCol, 'num:' + item.num, item.merge, item.firstShow());
       var classArray = ['item'];
       classArray.push('num-' + item.num); // 数字
       classArray.push('pos' + item.row + item.col); // 位置
@@ -302,6 +307,7 @@ export default {
         directionMap['39'] = 2;
         directionMap['40'] = 1;
         this.board.move(directionMap[event.keyCode])
+        // this.board.nums = JSON.parse(JSON.stringify(this.board.nums));
       }
     },
   },
@@ -336,7 +342,6 @@ export default {
   background: #CD9B1D;
   margin-left: 8px;
   margin-top: 8px;
-  /*animation: col0_to_col2 100ms linear 1ms 1 normal forwards;*/
 }
 
 .item {
@@ -350,7 +355,7 @@ export default {
 }
 
 .item.first_show {
-  animation: new_item 200ms linear 150ms 1 normal forwards;
+  animation: new_item 300ms linear 1000ms 1 normal forwards;
   transform: scale(0);
 }
 
