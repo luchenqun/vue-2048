@@ -1,13 +1,5 @@
 <template>
 <div>
-  <div id="game">
-    <!-- 底盘，占用格子 -->
-    <div v-for="(num, row) in nums">
-      <div v-for="(n, col) in num" class="card"></div>
-    </div>
-    <span v-for="item in items" v-bind:class="itemClass(item)">{{item.text}}
-    </span>
-  </div>
   <!-- <el-tabs v-model="activeName" @tab-click="handleClick" id="tabs">
     <el-tab-pane label="我的信息" name="info"> 我的信息
     </el-tab-pane>
@@ -26,32 +18,212 @@
     </el-tab-pane>
     <el-tab-pane label="英雄榜" name="ranklist">英雄榜</el-tab-pane>
   </el-tabs> -->
+  <div id="game">
+    <!-- 底盘，占用格子 -->
+    <div v-for="(item, row) in board.nums">
+      <div v-for="(num, col) in item" class="card"></div>
+    </div>
+    <span v-for="item in board.items.filter((item) => item.num > 0)" v-bind:class="itemClass(item)">{{item.num}}
+    </span>
+  </div>
 </div>
 </template>
 
 <script>
-var Item = function(row, col, text) {
-  this.text = text || 0;
-  this.row = row;
-  this.col = col;
+//////////////////////////////////////Item//////////////////////////////////////
+var Item = function(num, row, col) {
+  this.num = num || 0;
+  this.row = (row === undefined) ? (-1) : (row);
+  this.col = (col === undefined) ? (-1) : (col);
   this.oldRow = -1;
   this.oldCol = -1;
+  this.merge = null;
   this.id = Item.id++;
 };
 Item.id = 0;
+
+// 判断该元素是否是首次出现
+Item.prototype.firstShow = function() {
+  return ((this.oldRow < 0) || (this.oldCol < 0)) && (!this.merge);
+}
+
+Item.prototype.updatePos = function(row, col) {
+  this.oldRow = this.row;
+  this.oldCol = this.col;
+  this.row = row;
+  this.col = col;
+}
+
+Item.prototype.needMove = function() {
+  return this.merge;
+}
+
+Item.prototype.fromRow = function() {
+  return this.merge ? this.row : this.oldRow;
+}
+
+Item.prototype.toRow = function() {
+  return this.merge ? this.merge.row : this.row;
+}
+
+Item.prototype.fromCol = function() {
+  return this.merge ? this.col : this.oldCol;
+}
+
+Item.prototype.toCol = function() {
+  return this.merge ? this.merge.col : this.col;
+}
+
+
+//////////////////////////////////////Board/////////////////////////////////////
+var Board = function() {
+  this.items = []; // 用于来移动的数字
+  this.nums = []; // 用于来做逻辑数字
+
+  var num = 1;
+
+  // 初始化棋盘
+  this.nums = new Array(Board.SIZE);
+  for (var row = 0; row < this.nums.length; row++) {
+    this.nums[row] = new Array(Board.SIZE);
+    for (var col = 0; col < this.nums[row].length; col++) {
+      this.nums[row][col] = this.addItem(0, row, col);
+    }
+  }
+
+  this.nums[0] = [this.addItem(2, 0, 0), this.addItem(2, 0, 1), this.addItem(0, 0, 2), this.addItem(2, 0, 3)];
+  // 初始化一个数字
+  // this.addRandNum();
+  this.win = false; // 胜利标志
+
+  // 一些常量
+  this.SIZE = this.size = 4; // 数字盘大小
+  // this.UP = 3;
+  // this.DOWN = 1;
+  // this.LEFT = 0;
+  // this.RIGHT = 2;
+  this.MAXNUM = 2048;
+}
+
+Board.SIZE = Board.size = 4; // 数字盘大小
+Board.MAXNUM = 2048;
+
+Board.prototype.addItem = function(num, row, col) {
+  var item = new Item(num, row, col);
+  this.items.push(item);
+  return item;
+}
+
+Board.prototype.setPositions = function() {
+  this.nums.forEach((rowNums, row) => {
+    rowNums.forEach((item, col) => {
+      item.oldRow = item.row;
+      item.oldCol = item.col;
+      item.row = row;
+      item.col = col;
+    })
+  })
+}
+
+Board.prototype.randNum = function() {
+  return Math.random() < 0.1 ? 4 : 2;
+}
+
+Board.prototype.addRandNum = function() {
+  var emptyPos = [];
+  this.nums.forEach((rowNums, row) => {
+    emptyPos = emptyPos.concat(rowNums.filter((item) => item.num === 0));
+  });
+  if (emptyPos.length > 0) {
+    var pos = emptyPos[~~(Math.random() * emptyPos.length)];
+    var item = this.addItem(this.randNum(), pos.row, pos.col);
+    this.nums[pos.row][pos.col] = item;
+  }
+}
+
+// 对数字旋转n次，使上，右，下操作都转为左操作
+Board.prototype.rotateNums = function(n) {
+  n = n % 4;
+  if (n === 0) return;
+  var numsTemp = [];
+  numsTemp = new Array(Board.SIZE);
+  for (var row = 0; row < numsTemp.length; row++) {
+    numsTemp[row] = new Array(Board.SIZE);
+  }
+  // 旋转90°
+  // 1 2 3       7 4 1
+  // 4 5 6  -->  8 5 2
+  // 7 8 9       9 6 3
+  var dst = Board.SIZE - 1; // 这里我们从目标矩阵的最后一列开始存放数据
+  for (var row = 0; row < Board.SIZE; row++, dst--)
+    for (var col = 0; col < Board.SIZE; col++)
+      numsTemp[col][dst] = this.nums[row][col];
+
+  // 拷贝回原数组
+  for (var row = 0; row < Board.SIZE; row++)
+    for (var col = 0; col < Board.SIZE; col++)
+      this.nums[row][col] = numsTemp[row][col];
+
+  // 继续旋转
+  this.rotateNums(n - 1);
+}
+
+Board.prototype.left = function() {
+  var hasChanged = false;
+  for (var row = 0; row < Board.SIZE; ++row) {
+    var curRow = this.nums[row].filter(item => item.num >= 2);
+    var newRow = [];
+    for (var col = 0; col < Board.SIZE; ++col) {
+      var curItem = curRow.length ? curRow.shift() : this.addItem(0, row, col);
+      var nextItem = (curRow.length > 0 && curRow[0]) || null;
+
+      // 满足合并条件
+      if (nextItem && curItem.num == nextItem.num) {
+        var mergeItem = this.addItem(curItem.num * 2, row, col);
+
+        var itemMove1 = curItem;
+        itemMove1.merge = mergeItem;
+
+        var itemMove2 = curRow.shift();
+        itemMove2.merge = mergeItem;
+
+        curItem = mergeItem;
+      }
+
+      newRow[col] = curItem;
+
+      this.win = (curItem.num === Board.MAXNUM);
+      hasChanged = (curItem.num != this.nums[row][col].num);
+    }
+    this.nums[row] = newRow;
+  }
+  return hasChanged;
+}
+Board.prototype.print = function() {
+  this.nums.forEach((rowNums, row) => {
+    var nums = [];
+    rowNums.forEach((item) => {
+      nums.push(item.num)
+    })
+    console.log(row + ":" + JSON.stringify(nums));
+  })
+  console.log('');
+}
+
+Board.prototype.move = function(direction) {
+  this.print();
+  this.rotateNums(direction); // 旋转，为左操作准备
+  this.left();
+  this.rotateNums(4 - (direction % 4)) // 操作完成之后，要旋转回来
+  this.print();
+}
 
 export default {
   data() {
     return {
       COUNT: 4,
       activeName: 'game',
-      nums: [
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-        [0, 0, 0, 0],
-      ],
-      items: [],
+      board: new Board(),
     };
   },
   beforeCreate() {
@@ -66,285 +238,81 @@ export default {
         var keyframeName, keyframe, className, gapWidth;
         gapWidth = (next - index) * GAP;
 
-        keyframeName = `row${index}_to_row${next}`;
+        keyframeName = `r${index}_to_r${next}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {width:${index*WIDTH+GAP}px;} to {width:${next*WIDTH + gapWidth}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+
+        keyframeName = `r${next}_to_r${index}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {width:${next*WIDTH + gapWidth}px;} to {width:${index*WIDTH}px;}}`;
+        style.innerHTML += keyframe;
+        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
+
+        keyframeName = `c${index}_to_c${next}`;
         keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${index*WIDTH+GAP}px;} to {left:${next*WIDTH + gapWidth}px;}}`;
         style.innerHTML += keyframe;
         style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
 
-        keyframeName = `row${next}_to_row${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${next*WIDTH + gapWidth}px;} to {left:${index*WIDTH}px;}}`;
+        keyframeName = `c${next}_to_c${index}`;
+        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${next*WIDTH + gapWidth}px;} to {left:${index*WIDTH+(index+1)*GAP}px;}}`;
         style.innerHTML += keyframe;
         style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
-
-        keyframeName = `col${index}_to_col${next}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${index*WIDTH+GAP}px;} to {top:${next*WIDTH + gapWidth}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
-
-        keyframeName = `col${next}_to_col${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${next*WIDTH + gapWidth}px;} to {top:${index*WIDTH+GAP}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`
-        console.log(`.${keyframeName} { animation: ${keyframeName} 100ms linear 1ms 1 normal forwards; }`);
       }
     }
     for (var row = 0; row < COUNT; row++) {
       for (var col = 0; col < COUNT; col++) {
-        className = `.pos_row${row}_col${col}{ top:${row*WIDTH+(row+1)*GAP}px; left:${col*WIDTH+(col+1)*GAP}px;}`;
+        className = `.pos${row}${col}{ top:${row*WIDTH+(row+1)*GAP}px; left:${col*WIDTH+(col+1)*GAP}px;}`;
         style.innerHTML += className;
       }
     }
     document.getElementsByTagName('head')[0].appendChild(style);
   },
   methods: {
-    initNum() {
-      this.nums.forEach((n, row) => {
-        n.fill(0);
-      })
-      this.nums.forEach((a, row) => {
-        a.forEach((b, col) => {
-          this.nums[row][col] = Math.pow(2, parseInt(Math.random() * 11));
-          if (this.nums[row][col] >= 2) {
-            var item = new Item(row, col, this.nums[row][col]);
-            this.items.push(item);
-          }
-        })
-      })
-      //   this.updateNums(parseInt(Math.random() * 100) % 4, parseInt(Math.random() * 100) % 4, 2);
-      this.updateNums(0, 0, 2);
-    },
+    initNum() {},
     updateNums(row, col, newValue) {
       this.$set(this.nums[row], col, newValue);
     },
     randNum() {
       var success = false;
-      var emptyPos = [];
-      this.nums.forEach((a, row) => {
-        a.forEach((b, col) => {
-          if (b === 0) {
-            emptyPos.push({
-              row: row,
-              col: col,
-            })
-          }
-        })
-      })
-      if (emptyPos.length > 0) {
-        var index = parseInt(Math.random() * 100) % emptyPos.length
-        var pos = emptyPos[index];
-        this.updateNums(pos.row, pos.col, (index % 2) ? (2) : (4));
-        success = true;
-      } else {
-
-      }
       return success;
     },
     handleClick(tab, event) {},
-    numClass(r, l) {
-      var o = {};
-      o['num-' + this.nums[r][l]] = true;
-      return o;
-    },
     itemClass(item) {
+      //   console.log(item.row, item.col, item.oldRow, item.oldCol, item.num, item.merge, item.firstShow());
       var classArray = ['item'];
-      classArray.push('num-' + item.text);
-      classArray.push('pos_row' + item.row + '_col' + item.col);
+      classArray.push('num-' + item.num); // 数字
+      classArray.push('pos' + item.row + item.col); // 位置
+      if (item.firstShow()) {
+        classArray.push('first_show'); // 位置
+      }
+
+      if (item.needMove()) {
+        classArray.push(`r${item.fromRow()}_to_r${item.toRow()}`); // 位置
+        classArray.push(`c${item.fromCol()}_to_c${item.toCol()}`); // 位置
+      }
       return classArray.join(' ');
     },
-    left() {
-      var nums = this.nums;
-      let COUNT = 4;
-      for (let row = 0; row < COUNT; row++) {
-        let merge = false;
-        // 如果有数字相同，先合并
-        for (let col = 0; col < COUNT - 1 && (!merge); col++) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let gap = false;
-            for (let next = col + 1; next < COUNT; next++) {
-              let nextNum = nums[row][next];
-              if (curNum === nextNum && (!gap)) {
-                this.updateNums(row, col, curNum * 2);
-                this.updateNums(row, next, 0);
-                merge = true;
-                break;
-              } else {
-                gap = nextNum > 0;
-              }
-            }
-          }
-        }
-        // 合并完成，将数字掉落到正确的位置
-        for (let col = 0; col < COUNT; col++) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let dropIndex = -1;
-            for (let next = col - 1; next >= 0; next--) {
-              let nextNum = nums[row][next];
-              if (nextNum === 0) {
-                dropIndex = next;
-              } else {
-                break;
-              }
-            }
-            if (dropIndex >= 0) {
-              this.updateNums(row, dropIndex, curNum);
-              this.updateNums(row, col, 0);
-            }
-          }
-        }
+    keyDown(event) {
+      if (event.keyCode >= 37 && event.keyCode <= 40) {
+        // event.preventDefault();
+        var direction = event.keyCode - 37;
+        var directionMap = {};
+        directionMap['37'] = 0;
+        directionMap['38'] = 3;
+        directionMap['39'] = 2;
+        directionMap['40'] = 1;
+        this.board.move(directionMap[event.keyCode])
       }
-      this.randNum();
-    },
-    up() {
-      var nums = this.nums;
-      var COUNT = 4;
-      for (let col = 0; col < COUNT; col++) {
-        let merge = false;
-        // 如果有数字相同，先合并
-        for (let row = 0; row < COUNT && (!merge); row++) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let gap = false;
-            for (let next = row + 1; next < COUNT; next++) {
-              let nextNum = nums[next][col];
-              if (curNum === nextNum && (!gap)) {
-                this.updateNums(next, col, curNum * 2);
-                this.updateNums(row, col, 0);
-                merge = true;
-                break;
-              } else {
-                gap = nextNum > 0;
-              }
-            }
-          }
-        }
-        // 合并完成，将数字掉落到正确的位置
-        for (let row = 0; row < COUNT; row++) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let dropIndex = -1;
-            for (let next = row - 1; next >= 0; next--) {
-              let nextNum = nums[next][col];
-              if (nextNum === 0) {
-                dropIndex = next;
-              } else {
-                break;
-              }
-            }
-            if (dropIndex >= 0) {
-              this.updateNums(dropIndex, col, curNum);
-              this.updateNums(row, col, 0);
-            }
-          }
-        }
-      }
-      this.randNum();
-    },
-    right() {
-      var nums = this.nums;
-      var COUNT = 4;
-      for (let row = 0; row < COUNT; row++) {
-        let merge = false;
-        // 如果有数字相同，先合并
-        for (let col = COUNT - 1; col >= 1 && (!merge); col--) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let gap = false;
-            for (let next = col - 1; next >= 0; next--) {
-              let nextNum = nums[row][next];
-              if (curNum === nextNum && (!gap)) {
-                this.updateNums(row, col, curNum * 2);
-                this.updateNums(row, next, 0);
-                merge = true;
-                break;
-              } else {
-                gap = nextNum > 0;
-              }
-            }
-          }
-        }
-        // 合并完成，将数字掉落到正确的位置
-        for (let col = COUNT - 1; col >= 0; col--) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let dropIndex = -1;
-            for (let next = col + 1; next < COUNT; next++) {
-              let nextNum = nums[row][next];
-              if (nextNum === 0) {
-                dropIndex = next;
-              } else {
-                break;
-              }
-            }
-            if (dropIndex >= 0) {
-              this.updateNums(row, dropIndex, curNum);
-              this.updateNums(row, col, 0);
-            }
-          }
-        }
-      }
-      this.randNum();
-    },
-    down() {
-      var nums = this.nums;
-      var COUNT = 4;
-      for (let col = 0; col < COUNT; col++) {
-        let merge = false;
-        // 如果有数字相同，先合并
-        for (let row = COUNT - 1; row >= 0 && (!merge); row--) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let gap = false;
-            for (let next = row - 1; next >= 0; next--) {
-              let nextNum = nums[next][col];
-              if (curNum === nextNum && (!gap)) {
-                this.updateNums(next, col, curNum * 2);
-                this.updateNums(row, col, 0);
-                merge = true;
-                break;
-              } else {
-                gap = nextNum > 0;
-              }
-            }
-          }
-        }
-        // 合并完成，将数字掉落到正确的位置
-        for (let row = 0; row < COUNT; row++) {
-          let curNum = nums[row][col];
-          if (curNum > 0) {
-            let dropIndex = -1;
-            for (let next = row + 1; next < COUNT; next++) {
-              let nextNum = nums[next][col];
-              if (nextNum === 0) {
-                dropIndex = next;
-              } else {
-                break;
-              }
-            }
-            if (dropIndex >= 0) {
-              this.updateNums(dropIndex, col, curNum);
-              this.updateNums(row, col, 0);
-            }
-          }
-        }
-      }
-      this.randNum();
     },
   },
   created() {
     this.initNum();
   },
+  beforeDestroy() {
+    window.removeEventListener('keydown', this.keyDown.bind(this));
+  },
   mounted() {
-    document.onkeydown = (e) => {
-      var f = {
-        '37': this.left,
-        '38': this.up,
-        '39': this.right,
-        '40': this.down,
-      };
-      this.activeName == 'game' && f[e.keyCode] && f[e.keyCode]();
-    }
+    window.addEventListener('keydown', this.keyDown.bind(this));
   },
   computed: {}
 }
@@ -379,6 +347,20 @@ export default {
   position: absolute;
   border-radius: 5px;
   font-size: 50px;
+}
+
+.item.first_show {
+  animation: new_item 200ms linear 150ms 1 normal forwards;
+  transform: scale(0);
+}
+
+@keyframes new_item {
+  from {
+    transform: scale(0);
+  }
+  to {
+    transform: scale(1);
+  }
 }
 
 .num-0 {
