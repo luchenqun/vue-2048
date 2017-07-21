@@ -1,31 +1,20 @@
 <template>
 <div>
-  <!-- <el-tabs v-model="activeName" @tab-click="handleClick" id="tabs">
-    <el-tab-pane label="我的信息" name="info"> 我的信息
+  <el-tabs v-model="activeName" @tab-click="handleClick" id="tabs">
+    <el-tab-pane label="我的信息" name="info"> 我的信息正在开发...
     </el-tab-pane>
     <el-tab-pane label="开始游戏" name="game">
       <div id="game">
-        <div v-for="(num, row) in nums">
-          <div v-for="(n, col) in num" class="card">
-            <div class="box-card" v-bind:class="numClass(row, col)">
-              <div class="text item">
-                {{ n ? n : '' }}
-              </div>
-            </div>
-          </div>
+        <!-- 底盘，占用格子 -->
+        <div v-for="(rowNums, row) in board.nums">
+          <div v-for="(item, col) in rowNums" class="card"></div>
         </div>
+        <span v-for="item in board.items.filter((item) => item.num > 0)" v-bind:class="itemClass(item)">{{item.num}}
+          </span>
       </div>
     </el-tab-pane>
-    <el-tab-pane label="英雄榜" name="ranklist">英雄榜</el-tab-pane>
-  </el-tabs> -->
-  <div id="game">
-    <!-- 底盘，占用格子 -->
-    <div v-for="(rowNums, row) in board.nums">
-      <div v-for="(item, col) in rowNums" class="card"></div>
-    </div>
-    <span v-for="item in board.items.filter((item) => item.num > 0)" v-bind:class="itemClass(item)">{{item.num}}
-    </span>
-  </div>
+    <el-tab-pane label="英雄榜" name="ranklist">英雄榜正在开发...</el-tab-pane>
+  </el-tabs>
 </div>
 </template>
 
@@ -38,6 +27,7 @@ var Item = function(num, row, col) {
   this.oldRow = -1;
   this.oldCol = -1;
   this.merge = null;
+  this.delete = false;
   this.id = Item.id++;
 };
 Item.id = 0;
@@ -79,23 +69,21 @@ Item.prototype.toCol = function() {
 var Board = function() {
   this.items = []; // 用于来移动的数字
   this.nums = []; // 用于来做逻辑数字
-
-
-
   // 初始化棋盘
   this.nums = new Array(Board.SIZE);
   for (var row = 0; row < this.nums.length; row++) {
     this.nums[row] = new Array(Board.SIZE);
     for (var col = 0; col < this.nums[row].length; col++) {
-      var num = Math.pow(2, parseInt(Math.random() * 6) + 1);
-      this.nums[row][col] = this.addItem(num, row, col);
+      // var num = Math.pow(2, parseInt(Math.random() * 11) + 1);
+      this.nums[row][col] = this.addItem(0, row, col);
     }
   }
 
-  // this.nums[0] = [this.addItem(4, 0, 0), this.addItem(4, 0, 1), this.addItem(0, 0, 2), this.addItem(2, 0, 3)];
+  // this.nums[0] = [this.addItem(4, 0, 0), this.addItem(4, 0, 1), this.addItem(0, 0, 2), this.addItem(0, 0, 3)];
   // 初始化一个数字
-  // this.addRandNum();
+  this.addRandNum();
   this.win = false; // 胜利标志
+  this.lost = false;
 
   // 一些常量
   this.SIZE = this.size = 4; // 数字盘大小
@@ -122,6 +110,7 @@ Board.prototype.setPositions = function() {
       item.oldCol = item.col;
       item.row = row;
       item.col = col;
+      item.delete = false;
     })
   })
 }
@@ -192,9 +181,7 @@ Board.prototype.left = function() {
       }
 
       newRow[col] = curItem;
-
-      this.win = (curItem.num === Board.MAXNUM);
-      hasChanged = (curItem.num != this.nums[row][col].num);
+      hasChanged |= (curItem.num != this.nums[row][col].num);
     }
     this.nums[row] = newRow;
   }
@@ -211,20 +198,66 @@ Board.prototype.print = function() {
   console.log('');
 }
 
+Board.prototype.deleteUselessItem = function() {
+  this.items = this.items.filter((item) => !item.delete);
+  this.items.forEach((item) => item.delete = true);
+}
+
+Board.prototype.hasWin = function() {
+  for (var row = 0; row < Board.SIZE; row++)
+    for (var col = 0; col < Board.SIZE; col++)
+      if (this.nums[row][col].num === this.MAXNUM) {
+        return true;
+      }
+  return false;
+}
+
+Board.prototype.canMove = function() {
+  var move = false;
+  this.nums.forEach((rowNums, row) => {
+    rowNums.forEach((item, col) => {
+      if (item.num === 0) {
+        move = true;
+      }
+
+      var dirs = [
+        [row - 1, col],
+        [row + 1, col],
+        [row, col + 1],
+        [row, col - 1],
+      ];
+      dirs.forEach((dir) => {
+        if (dir[0] >= 0 && dir[0] < Board.SIZE && dir[1] >= 0 && dir[1] < Board.SIZE) {
+          if (item.num === this.nums[dir[0]][dir[1]].num) {
+            move = true;
+          }
+        }
+      })
+    })
+  })
+
+  return move;
+}
+
 Board.prototype.move = function(direction) {
   this.print();
+  this.deleteUselessItem();
   this.rotateNums(direction); // 旋转，为左操作准备
-  this.left();
-  // this.addRandNum();
+  var needRandNum = this.left();
   this.rotateNums(4 - (direction % 4)) // 操作完成之后，要旋转回来
   this.setPositions();
+  if (needRandNum) {
+    this.addRandNum();
+  }
+  this.lost = !(this.canMove());
+  this.win = this.hasWin()
   this.print();
 }
 
 export default {
   data() {
     return {
-      COUNT: 4,
+      arrowsKeyUp: false,
       activeName: 'game',
       board: new Board(),
     };
@@ -236,70 +269,82 @@ export default {
     const COUNT = 4;
     const WIDTH = 100;
     const GAP = 8;
-    for (var index = 0; index < COUNT - 1; index++) {
-      for (var next = index + 1; next < COUNT; next++) {
+    for (var index = 0; index < COUNT; index++) {
+      for (var next = 0; next < COUNT; next++) {
         var keyframeName, keyframe, className;
         var begin = index * (WIDTH + GAP) + GAP;
         var end = next * (WIDTH + GAP) + GAP;
-        var duration = 1000;
+        var duration = 200;
 
-        keyframeName = `r${index}_to_r${next}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${begin}px;} to {top:${end}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
+        if (index === next) {
+          style.innerHTML += `.r${index}_to_r${index} { top:${begin}px; } `;
+          style.innerHTML += `.c${index}_to_c${index} { left:${begin}px; } `;
+        } else {
+          className = `r${index}_to_r${next}`;
+          keyframeName = `frame${className}`;
+          keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${begin}px;} to {top:${end}px;}} `;
+          style.innerHTML += keyframe;
+          style.innerHTML += `.${className} { animation: ${keyframeName} ${duration}ms linear 0ms 1 normal forwards; } `
 
-        keyframeName = `r${next}_to_r${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${end}px;} to {top:${begin}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
+          className = `r${next}_to_r${index}`;
+          keyframeName = `frame${className}`;
+          keyframe = `@-webkit-keyframes ${keyframeName}{from {top:${end}px;} to {top:${begin}px;}} `;
+          style.innerHTML += keyframe;
+          style.innerHTML += `.${className} { animation: ${keyframeName} ${duration}ms linear 0ms 1 normal forwards; } `
 
-        keyframeName = `c${index}_to_c${next}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${begin}px;} to {left:${end}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
+          className = `c${index}_to_c${next}`;
+          keyframeName = `frame${className}`;
+          keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${begin}px;} to {left:${end}px;}} `;
+          style.innerHTML += keyframe;
+          style.innerHTML += `.${className} { animation: ${keyframeName} ${duration}ms linear 0ms 1 normal forwards; } `
 
-        keyframeName = `c${next}_to_c${index}`;
-        keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${end}px;} to {left:${begin}px;}}`;
-        style.innerHTML += keyframe;
-        style.innerHTML += `.${keyframeName} { animation: ${keyframeName} ${duration}ms linear 1ms 1 normal forwards; }`
+          className = `c${next}_to_c${index}`;
+          keyframeName = `frame${className}`;
+          keyframe = `@-webkit-keyframes ${keyframeName}{from {left:${end}px;} to {left:${begin}px;}} `;
+          style.innerHTML += keyframe;
+          style.innerHTML += `.${className} { animation: ${keyframeName} ${duration}ms linear 0ms 1 normal forwards; } `
+        }
       }
     }
     for (var row = 0; row < COUNT; row++) {
       for (var col = 0; col < COUNT; col++) {
-        className = `.pos${row}${col}{ top:${row*WIDTH+(row+1)*GAP}px; left:${col*WIDTH+(col+1)*GAP}px;}`;
+        className = `.pos${row}${col}:not(.moving){ top:${row*WIDTH+(row+1)*GAP}px; left:${col*WIDTH+(col+1)*GAP}px;} `;
         style.innerHTML += className;
       }
     }
     document.getElementsByTagName('head')[0].appendChild(style);
   },
   methods: {
-    initNum() {},
-    updateNums(row, col, newValue) {
-      this.$set(this.nums[row], col, newValue);
+    handleClick(tab, event) {
+      var name = tab.name
+      if (name == 'game') {
+        this.board = new Board();
+      }
     },
-    randNum() {
-      var success = false;
-      return success;
-    },
-    handleClick(tab, event) {},
     itemClass(item) {
-      console.log('row:' + item.row, 'col:' + item.col, 'oldRow:' + item.oldRow, 'oldCol:' + item.oldCol, 'num:' + item.num, item.merge, item.firstShow());
+      //console.log('row:' + item.row, 'col:' + item.col, 'oldRow:' + item.oldRow, 'oldCol:' + item.oldCol, 'num:' + item.num, item.merge, item.firstShow());
       var classArray = ['item'];
       classArray.push('num-' + item.num); // 数字
-      classArray.push('pos' + item.row + item.col); // 位置
       if (item.firstShow()) {
         classArray.push('first_show'); // 位置
       }
-
       if (item.needMove()) {
         classArray.push(`r${item.fromRow()}_to_r${item.toRow()}`); // 位置
         classArray.push(`c${item.fromCol()}_to_c${item.toCol()}`); // 位置
+        classArray.push('moving');
+      } else {
+        classArray.push('pos' + item.row + item.col); // 位置
       }
       return classArray.join(' ');
     },
-    keyDown(event) {
+    keyUp(event) {
       if (event.keyCode >= 37 && event.keyCode <= 40) {
-        // event.preventDefault();
+        this.arrowsKeyUp = true;
+      }
+    },
+    keyDown(event) {
+      if (event.keyCode >= 37 && event.keyCode <= 40 && this.arrowsKeyUp) {
+        event.preventDefault();
         var direction = event.keyCode - 37;
         var directionMap = {};
         directionMap['37'] = 0;
@@ -307,18 +352,28 @@ export default {
         directionMap['39'] = 2;
         directionMap['40'] = 1;
         this.board.move(directionMap[event.keyCode])
-        // this.board.nums = JSON.parse(JSON.stringify(this.board.nums));
+        if (this.board.win || this.board.lost) {
+          this.$message({
+            message: this.board.win ? '恭喜你，成功了！' : '哦哦，你输了！',
+            type: this.board.win ? 'success' : 'error'
+          });
+          var self = this;
+          setTimeout(function() {
+            self.board = new Board();
+          }, 3000);
+        }
+        this.arrowsKeyUp = false;
       }
     },
   },
-  created() {
-    this.initNum();
-  },
+  created() {},
   beforeDestroy() {
     window.removeEventListener('keydown', this.keyDown.bind(this));
+    window.removeEventListener('keyup', this.keyUp.bind(this));
   },
   mounted() {
     window.addEventListener('keydown', this.keyDown.bind(this));
+    window.addEventListener('keyup', this.keyUp.bind(this));
   },
   computed: {}
 }
@@ -355,7 +410,7 @@ export default {
 }
 
 .item.first_show {
-  animation: new_item 300ms linear 1000ms 1 normal forwards;
+  animation: new_item 100ms linear 200ms 1 normal forwards;
   transform: scale(0);
 }
 
